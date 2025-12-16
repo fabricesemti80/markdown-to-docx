@@ -42,6 +42,10 @@ make clean
 ## Manual Usage (without Make)
 
 1. Create a virtual environment: `python -m venv venv`
-2. Activate it: `venv\Scripts\activate`
+2. Activate it: `venv\Scripts\activate` (Windows) or `source venv/bin/activate` (Linux/Mac)
 3. Install requirements: `pip install -r requirements.txt`
-4. Run the script: `python convert.py input.md output.docx`
+4. Run the script:
+   - **With arguments:** `python convert.py input.md output.docx`
+   - **Interactive mode:** `python convert.py` (You will be prompted for file paths)
+
+   *Note: The script automatically handles images located in the same directory as the input file.*
