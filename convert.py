@@ -17,12 +17,16 @@ def convert_md_to_docx(input_file, output_file):
         # 2. Prepare the conversion
         
         # We need to tell the converter where to look for images.
-        # Images are usually in the same folder as the input file.
-        # So we find the folder path of the input file.
+        # 1. The folder where the input file is (so relative paths like 'image.png' or '../img.png' work)
         input_dir = os.path.dirname(os.path.abspath(input_file))
+        # 2. The current working directory (where we are running the script from)
+        cwd = os.getcwd()
         
-        # We create a special setting to tell the converter: "Look for images here!"
-        extra_args = [f'--resource-path={input_dir}']
+        # Combine these paths using the system's separator (semicolon for Windows, colon for others)
+        resource_path_arg = os.pathsep.join([input_dir, cwd])
+        
+        # We create a special setting to tell the converter: "Look for images in these folders!"
+        extra_args = [f'--resource-path={resource_path_arg}']
         
         # 3. Perform the conversion
         # We ask pypandoc to convert the 'input_file' to 'docx' format.
@@ -43,7 +47,10 @@ def convert_md_to_docx(input_file, output_file):
         print(f"An unexpected error occurred: {e}")
         sys.exit(1)
 
-# This is the starting point of the script when you run it
+# This is the starting point of the script when you run it directly.
+# In Python, we define functions first (like 'begin'), and then we call them at the bottom.
+# This check (if __name__ == "__main__") ensures this code only runs when you execute the script,
+# not when you import it into another script.
 if __name__ == "__main__":
     # Setup the tool to understand command line arguments
     parser = argparse.ArgumentParser(description="Convert Markdown to DOCX.")
