@@ -2,7 +2,25 @@
 import argparse  # Helps us read commands from the terminal
 import sys       # Helps us interact with the computer system (like exiting the program)
 import os        # Helps us work with files and folders
+import re        # Helps us match text patterns
 import pypandoc  # The main tool that converts files (like a translator)
+
+
+def strip_yaml_front_matter(text):
+    """
+    Removes YAML front matter (the block between --- markers at the top of a file)
+    so that Pandoc doesn't choke on special YAML characters like * or &.
+    Handles BOM, Windows line endings, and ... as closing delimiter.
+    """
+    # Remove BOM if present
+    text = text.lstrip('\ufeff')
+    # Match opening --- and closing --- or ... with flexible whitespace/line endings
+    result = re.sub(r'\A---[ \t]*\r?\n.*?\r?\n(?:---|\.\.\.)[ \t]*\r?\n', '', text, count=1, flags=re.DOTALL)
+    if result == text:
+        print("WARNING: No YAML front matter detected to strip.")
+    else:
+        print("INFO: YAML front matter was stripped before conversion.")
+    return result
 
 def convert_md_to_docx(input_file, output_file):
     """
@@ -28,11 +46,17 @@ def convert_md_to_docx(input_file, output_file):
         # We create a special setting to tell the converter: "Look for images in these folders!"
         extra_args = [f'--resource-path={resource_path_arg}']
         
-        # 3. Perform the conversion
-        # We ask pypandoc to convert the 'input_file' to 'docx' format.
-        # We save the result to 'output_file'.
-        # We pass our special setting (extra_args) to help it find images.
-        output = pypandoc.convert_file(input_file, 'docx', outputfile=output_file, extra_args=extra_args)
+        # 3. Read the file and replace standalone --- lines (horizontal rules)
+        #    with *** to prevent Pandoc from misinterpreting them as YAML blocks.
+        #    Also strip any real YAML front matter at the top of the file.
+        with open(input_file, 'r', encoding='utf-8-sig') as f:
+            content = f.read()
+        content = strip_yaml_front_matter(content)
+        # Replace remaining --- horizontal rules with *** (which Pandoc never treats as YAML)
+        content = re.sub(r'^---\s*$', '***', content, flags=re.MULTILINE)
+        
+        # 4. Perform the conversion from the cleaned Markdown string
+        output = pypandoc.convert_text(content, 'docx', format='markdown', outputfile=output_file, extra_args=extra_args)
         
         # 4. Success! Tell the user it worked.
         print(f"Successfully converted '{input_file}' to '{output_file}'.")
