@@ -337,12 +337,36 @@ def detect_direction(input_file, output_format='docx'):
         return 'md2out', base + '.' + output_format
 
 
+def choose_output_format(default_format='docx'):
+    """
+    Prompts for output format when Markdown is the input and no format was provided.
+    Falls back to default_format on empty input, Ctrl+C, or EOF.
+    """
+    prompt = f"Choose output format [docx/pdf] (default: {default_format}): "
+    try:
+        selected = input(prompt).strip().lower()
+    except KeyboardInterrupt:
+        print()
+        log_warn("Operation cancelled.")
+        sys.exit(0)
+    except EOFError:
+        log_warn(f"No interactive input available; defaulting to '{default_format}'.")
+        return default_format
+
+    if not selected:
+        return default_format
+    if selected not in ('docx', 'pdf'):
+        log_warn(f"Unknown format '{selected}', defaulting to '{default_format}'.")
+        return default_format
+    return selected
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Convert between Markdown, DOCX, and PDF (auto-detects direction).")
     parser.add_argument("input_file", nargs="?", help="Path to the input file (.md or .docx).")
     parser.add_argument("output_file", nargs="?", help="Path to the output file.")
-    parser.add_argument("-f", "--format", choices=["docx", "pdf"], default="docx",
-                        help="Output format when converting from Markdown (default: docx).")
+    parser.add_argument("-f", "--format", choices=["docx", "pdf"], default=None,
+                        help="Output format when converting from Markdown. If omitted, you will be prompted (default: docx).")
 
     args = parser.parse_args()
 
@@ -363,6 +387,14 @@ if __name__ == "__main__":
     if not input_file:
         log_error("Input file is required.")
         sys.exit(1)
+
+    # If no format is provided for Markdown input, ask the user (default docx).
+    if output_format is None:
+        ext = os.path.splitext(input_file)[1].lower()
+        if ext not in ('.docx',):
+            output_format = choose_output_format('docx')
+        else:
+            output_format = 'docx'
 
     # Auto-detect conversion direction
     direction, default_output = detect_direction(input_file, output_format)

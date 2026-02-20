@@ -10,10 +10,27 @@ The script auto-detects the direction from the input file extension.
 
 ## Requirements
 
-- Python 3
-- `uv` (recommended for env + dependency management)
+### Required tools
+
+- Python 3.10+ (tested with Python 3.13)
 - Pandoc (must be installed and available in `PATH`)
-- GNU Make (optional, only if you use the `Makefile`)
+- `uv` (required by `make init`)
+
+### Optional tools
+
+- GNU Make (if you want to use the `Makefile` targets)
+- WeasyPrint runtime libraries (optional): if unavailable, PDF generation automatically falls back to `xhtml2pdf`
+
+### Python dependencies
+
+- Installed from `requirements.txt`:
+  - `pypandoc`
+  - `requests`
+  - `xhtml2pdf`
+
+### Network requirement
+
+- Mermaid diagrams are rendered through `https://mermaid.ink`; internet access is required when converting Markdown files containing Mermaid blocks.
 
 ## What the script does
 
@@ -21,6 +38,7 @@ The script auto-detects the direction from the input file extension.
   - `.md` -> `.docx` or `.pdf`
   - `.docx` -> `.md`
 - Supports command-line and interactive modes.
+- If format is not provided for Markdown input, prompts for output format (`docx` default, `pdf` optional).
 - Markdown -> DOCX:
   - Strips YAML front matter before conversion.
   - Replaces standalone `---` lines with `***` to avoid YAML misinterpretation.
@@ -50,6 +68,18 @@ make convert INPUT=doc.md
 make convert INPUT=doc.md OUTPUT=out.docx
 ```
 
+Markdown -> PDF:
+
+```bash
+make convert INPUT=doc.md FORMAT=pdf
+```
+
+Prompt for format (defaults to DOCX):
+
+```bash
+make convert INPUT=doc.md
+```
+
 DOCX -> Markdown:
 
 ```bash
@@ -58,6 +88,7 @@ make convert INPUT=doc.docx OUTPUT=out.md
 ```
 
 If `OUTPUT` is omitted, the script uses a default based on input filename.
+If `FORMAT` is omitted for Markdown input, the script prompts for `docx`/`pdf` (default: `docx`).
 
 ### 3. Clean up
 
@@ -79,6 +110,7 @@ make clean
      `python convert.py input_file [output_file] -f [docx|pdf]`
    - Interactive mode:
      `python convert.py`
+   - Omit `-f` with Markdown input to choose format interactively (default: `docx`).
 
 Examples:
 
@@ -86,6 +118,7 @@ Examples:
 python convert.py test.md
 python convert.py test.md test.docx
 python convert.py test.md test.pdf -f pdf
+python convert.py test.md test.out      # prompts for docx/pdf, defaults to docx
 python convert.py document.docx
 python convert.py document.docx document.md
 ```

@@ -1,0 +1,10 @@
+CHANGELOG
+
+2025-12-16
+- Initial project build for Markdown/DOCX conversion workflow and Make-based execution.
+
+2026-02-20
+- Added bidirectional conversion support (Markdown <-> DOCX) and Mermaid diagram rendering to images during Markdown conversion.
+
+2026-02-20
+- Added PDF output support from Markdown, with WeasyPrint as primary engine and automatic xhtml2pdf fallback when WeasyPrint runtime dependencies are unavailable.
