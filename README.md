@@ -1,51 +1,87 @@
-# Markdown to DOCX Converter
+# Markdown and DOCX Converter
 
-This project provides a Python script to convert Markdown files to DOCX format using Pandoc.
+This project provides a Python script to convert:
+
+- Markdown -> DOCX
+- DOCX -> Markdown
+
+The script auto-detects the direction from the input file extension.
 
 ## Requirements
 
 - Python 3
-- Pandoc (must be installed and in your system PATH)
-- Make (optional, for using the Makefile)
+- Pandoc (must be installed and available in `PATH`)
+- GNU Make (optional, only if you use the `Makefile`)
 
-## Usage
+## What the script does
 
-### 1. Setup
+- Auto-detects conversion direction:
+  - `.md` -> `.docx`
+  - `.docx` -> `.md`
+- Supports command-line and interactive modes.
+- Markdown -> DOCX:
+  - Strips YAML front matter before conversion.
+  - Replaces standalone `---` lines with `***` to avoid YAML misinterpretation.
+  - Resolves image resources from both the input file directory and current working directory.
+  - Renders fenced Mermaid blocks (```mermaid ... ```) to PNG images via `https://mermaid.ink`.
+- DOCX -> Markdown:
+  - Extracts embedded media into a `media` folder next to the output Markdown file.
+  - Uses unwrapped lines (`--wrap=none`).
 
-Run the setup command to create a virtual environment and install dependencies.
+## Using Make
+
+### 1. Initialize environment
 
 ```bash
-make setup
+make init
 ```
 
-### 2. Convert a File
+This creates `venv` and installs dependencies from `requirements.txt`.
 
-Use the `convert` target to convert a Markdown file to DOCX.
+### 2. Convert files
+
+Markdown -> DOCX:
 
 ```bash
-make convert INPUT="path/to/input.md" OUTPUT="path/to/output.docx"
+make convert INPUT=doc.md
+make convert INPUT=doc.md OUTPUT=out.docx
 ```
 
-Example:
+DOCX -> Markdown:
+
 ```bash
-make convert INPUT=test.md OUTPUT=test.docx
+make convert INPUT=doc.docx
+make convert INPUT=doc.docx OUTPUT=out.md
 ```
 
-### 3. Cleanup
+If `OUTPUT` is omitted, the script uses a default based on input filename.
 
-To remove the virtual environment:
+### 3. Clean up
 
 ```bash
 make clean
 ```
 
-## Manual Usage (without Make)
+## Manual usage (without Make)
 
-1. Create a virtual environment: `python -m venv venv`
-2. Activate it: `venv\Scripts\activate` (Windows) or `source venv/bin/activate` (Linux/Mac)
-3. Install requirements: `pip install -r requirements.txt`
+1. Create a virtual environment:
+   `python -m venv venv`
+2. Activate it:
+   - Windows: `venv\Scripts\activate`
+   - Linux/macOS: `source venv/bin/activate`
+3. Install dependencies:
+   `pip install -r requirements.txt`
 4. Run the script:
-   - **With arguments:** `python convert.py input.md output.docx`
-   - **Interactive mode:** `python convert.py` (You will be prompted for file paths)
+   - With arguments:
+     `python convert.py input_file [output_file]`
+   - Interactive mode:
+     `python convert.py`
 
-   *Note: The script automatically handles images located in the same directory as the input file.*
+Examples:
+
+```bash
+python convert.py test.md
+python convert.py test.md test.docx
+python convert.py document.docx
+python convert.py document.docx document.md
+```

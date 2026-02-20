@@ -10,8 +10,10 @@ PIP := $(VENV)\Scripts\pip
 help:
 	@Write-Host "Available targets:"
 	@Write-Host "  init    : Create virtual environment and install dependencies"
-	@Write-Host "  convert : Convert Markdown to DOCX (requires INPUT and OUTPUT variables)"
-	@Write-Host "            Example: make convert INPUT=test.md OUTPUT=test.docx"
+	@Write-Host "  convert : Convert between Markdown and DOCX (auto-detects direction)"
+	@Write-Host "            MD to DOCX:  make convert INPUT=doc.md"
+	@Write-Host "            DOCX to MD:  make convert INPUT=doc.docx"
+	@Write-Host "            With output: make convert INPUT=doc.md OUTPUT=out.docx"
 	@Write-Host "  clean   : Remove virtual environment"
 
 init:
