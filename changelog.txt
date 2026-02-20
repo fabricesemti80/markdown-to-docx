@@ -8,3 +8,6 @@ CHANGELOG
 
 2026-02-20
 - Added PDF output support from Markdown, with WeasyPrint as primary engine and automatic xhtml2pdf fallback when WeasyPrint runtime dependencies are unavailable.
+
+2026-02-20
+- Migrated project environment management to uv project mode (`pyproject.toml` + `uv.lock`) with `uv sync`/`uv run` workflow.

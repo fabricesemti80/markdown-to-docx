@@ -1,0 +1,11 @@
+[project]
+name = "md-converter"
+version = "0.1.0"
+description = "Markdown, DOCX, and PDF converter"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pypandoc",
+    "requests",
+    "xhtml2pdf",
+]

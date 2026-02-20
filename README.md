@@ -14,7 +14,7 @@ The script auto-detects the direction from the input file extension.
 
 - Python 3.10+ (tested with Python 3.13)
 - Pandoc (must be installed and available in `PATH`)
-- `uv` (required by `make init`)
+- `uv` (required for `uv sync`, `uv run`, and `make init`)
 
 ### Optional tools
 
@@ -23,7 +23,7 @@ The script auto-detects the direction from the input file extension.
 
 ### Python dependencies
 
-- Installed from `requirements.txt`:
+- Declared in `pyproject.toml` and locked in `uv.lock`:
   - `pypandoc`
   - `requests`
   - `xhtml2pdf`
@@ -56,8 +56,8 @@ The script auto-detects the direction from the input file extension.
 make init
 ```
 
-This creates `venv` and installs dependencies from `requirements.txt` using `uv`.
-If `uv pip` is blocked by your network/proxy, `make init` falls back to `pip`.
+This creates `.venv` and installs/syncs dependencies using `uv sync`.
+If `uv sync` is blocked by your network/proxy, `make init` falls back to `pip` in the same `.venv`.
 
 ### 2. Convert files
 
@@ -98,27 +98,22 @@ make clean
 
 ## Manual usage (without Make)
 
-1. Create a virtual environment:
-   `uv venv venv`
-2. Activate it:
-   - Windows: `venv\Scripts\activate`
-   - Linux/macOS: `source venv/bin/activate`
-3. Install dependencies:
-   `uv pip install --native-tls -r requirements.txt`
-4. Run the script:
+1. Sync project environment from lockfile:
+   `uv sync --native-tls`
+2. Run the script:
    - With arguments:
-     `python convert.py input_file [output_file] -f [docx|pdf]`
+     `uv run --no-sync python convert.py input_file [output_file] -f [docx|pdf]`
    - Interactive mode:
-     `python convert.py`
+     `uv run --no-sync python convert.py`
    - Omit `-f` with Markdown input to choose format interactively (default: `docx`).
 
 Examples:
 
 ```bash
-python convert.py test.md
-python convert.py test.md test.docx
-python convert.py test.md test.pdf -f pdf
-python convert.py test.md test.out      # prompts for docx/pdf, defaults to docx
-python convert.py document.docx
-python convert.py document.docx document.md
+uv run --no-sync python convert.py test.md
+uv run --no-sync python convert.py test.md test.docx
+uv run --no-sync python convert.py test.md test.pdf -f pdf
+uv run --no-sync python convert.py test.md test.out      # prompts for docx/pdf, defaults to docx
+uv run --no-sync python convert.py document.docx
+uv run --no-sync python convert.py document.docx document.md
 ```
