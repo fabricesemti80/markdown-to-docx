@@ -1,8 +1,9 @@
-# Markdown and DOCX Converter
+# Markdown, DOCX, and PDF Converter
 
 This project provides a Python script to convert:
 
 - Markdown -> DOCX
+- Markdown -> PDF
 - DOCX -> Markdown
 
 The script auto-detects the direction from the input file extension.
@@ -10,13 +11,14 @@ The script auto-detects the direction from the input file extension.
 ## Requirements
 
 - Python 3
+- `uv` (recommended for env + dependency management)
 - Pandoc (must be installed and available in `PATH`)
 - GNU Make (optional, only if you use the `Makefile`)
 
 ## What the script does
 
 - Auto-detects conversion direction:
-  - `.md` -> `.docx`
+  - `.md` -> `.docx` or `.pdf`
   - `.docx` -> `.md`
 - Supports command-line and interactive modes.
 - Markdown -> DOCX:
@@ -36,7 +38,8 @@ The script auto-detects the direction from the input file extension.
 make init
 ```
 
-This creates `venv` and installs dependencies from `requirements.txt`.
+This creates `venv` and installs dependencies from `requirements.txt` using `uv`.
+If `uv pip` is blocked by your network/proxy, `make init` falls back to `pip`.
 
 ### 2. Convert files
 
@@ -65,15 +68,15 @@ make clean
 ## Manual usage (without Make)
 
 1. Create a virtual environment:
-   `python -m venv venv`
+   `uv venv venv`
 2. Activate it:
    - Windows: `venv\Scripts\activate`
    - Linux/macOS: `source venv/bin/activate`
 3. Install dependencies:
-   `pip install -r requirements.txt`
+   `uv pip install --native-tls -r requirements.txt`
 4. Run the script:
    - With arguments:
-     `python convert.py input_file [output_file]`
+     `python convert.py input_file [output_file] -f [docx|pdf]`
    - Interactive mode:
      `python convert.py`
 
@@ -82,6 +85,7 @@ Examples:
 ```bash
 python convert.py test.md
 python convert.py test.md test.docx
+python convert.py test.md test.pdf -f pdf
 python convert.py document.docx
 python convert.py document.docx document.md
 ```
