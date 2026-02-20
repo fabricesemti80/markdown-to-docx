@@ -3,15 +3,106 @@ import argparse  # Helps us read commands from the terminal
 import sys       # Helps us interact with the computer system (like exiting the program)
 import os        # Helps us work with files and folders
 import re        # Helps us match text patterns
+import subprocess
 import base64    # Helps us encode data for URLs
 import tempfile  # Helps us create temporary files
 import shutil    # Helps us copy files
+from urllib.parse import unquote, urlparse
 import requests  # Helps us make web requests (for Mermaid rendering)
 import urllib3   # Used to suppress SSL warnings in corporate environments
 import pypandoc  # The main tool that converts files (like a translator)
+from xhtml2pdf import pisa  # Pure-Python HTML -> PDF fallback for Windows
 
 # Suppress SSL warnings when verify=False (common in corporate proxy environments)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+def _is_windows_drive_path(path_value):
+    """Returns True for paths like C:/... or C:\\..."""
+    return bool(re.match(r'^[a-zA-Z]:[\\/]', path_value or ''))
+
+
+def _make_xhtml2pdf_link_callback(search_paths):
+    """
+    Resolves local image/file references for xhtml2pdf.
+    Keeps HTTP(S) URIs untouched and maps local/relative paths to filesystem paths.
+    """
+    normalized_search_paths = [os.path.abspath(p) for p in search_paths if p]
+
+    def link_callback(uri, rel):
+        if not uri:
+            return uri
+
+        parsed = urlparse(uri)
+        if parsed.scheme in ('http', 'https'):
+            return uri
+
+        if parsed.scheme == 'file':
+            candidate = unquote(parsed.path or '')
+            # Windows file URI can be /C:/path -> strip first slash
+            if candidate.startswith('/') and re.match(r'^/[a-zA-Z]:', candidate):
+                candidate = candidate[1:]
+            if os.path.exists(candidate):
+                return candidate
+
+        raw = unquote(uri).replace('\\', os.sep)
+        if _is_windows_drive_path(raw) and os.path.exists(raw):
+            return raw
+
+        if os.path.isabs(raw) and os.path.exists(raw):
+            return raw
+
+        rel_hint = unquote(rel or '')
+        for base in [rel_hint, *normalized_search_paths]:
+            if not base:
+                continue
+            candidate = os.path.abspath(os.path.join(base, raw))
+            if os.path.exists(candidate):
+                return candidate
+
+        # Let xhtml2pdf handle unknown URIs as-is.
+        return uri
+
+    return link_callback
+
+
+def _can_use_weasyprint(weasyprint_exe):
+    """
+    Returns True if the configured WeasyPrint executable is callable.
+    This avoids noisy Pandoc failures when GTK runtime libs are missing.
+    """
+    if not weasyprint_exe or not os.path.exists(weasyprint_exe):
+        return False
+    try:
+        probe = subprocess.run(
+            [weasyprint_exe, '--info'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=10
+        )
+        return probe.returncode == 0
+    except Exception:
+        return False
+
+
+def _convert_pdf_with_xhtml2pdf(content, output_file, resource_paths, resource_path_arg):
+    """
+    Fallback PDF generation:
+    Markdown -> HTML (Pandoc), then HTML -> PDF (xhtml2pdf).
+    """
+    html = pypandoc.convert_text(
+        content,
+        'html',
+        format='markdown',
+        extra_args=[f'--resource-path={resource_path_arg}']
+    )
+    html = f"<html><head><meta charset='utf-8'></head><body>{html}</body></html>"
+    callback = _make_xhtml2pdf_link_callback(resource_paths)
+    with open(output_file, 'wb') as f:
+        result = pisa.CreatePDF(src=html, dest=f, encoding='utf-8', link_callback=callback)
+    if result.err:
+        raise RuntimeError("xhtml2pdf failed to render the generated HTML to PDF.")
 
 
 def strip_yaml_front_matter(text):
@@ -71,7 +162,7 @@ def render_mermaid_blocks(content, temp_dir):
             pandoc_path = image_path.replace('\\', '/')
             replacement = f'![Diagram {diagram_num}]({pandoc_path})'
             content = content[:match.start()] + replacement + content[match.end():]
-            print(f"  Rendered diagram {diagram_num} → {image_path}")
+            print(f"  Rendered diagram {diagram_num} -> {image_path}")
 
         except Exception as e:
             print(f"  WARNING: Failed to render diagram {diagram_num}: {e}")
@@ -80,9 +171,10 @@ def render_mermaid_blocks(content, temp_dir):
     return content
 
 
-def convert_md_to_docx(input_file, output_file):
+def convert_md_to_output(input_file, output_file, output_format):
     """
-    Converts a Markdown file to a DOCX file using pypandoc.
+    Converts a Markdown file to DOCX or PDF using pypandoc.
+    output_format should be 'docx' or 'pdf'.
     """
     if not os.path.exists(input_file):
         print(f"Error: Input file '{input_file}' not found.")
@@ -93,6 +185,20 @@ def convert_md_to_docx(input_file, output_file):
         cwd = os.getcwd()
         resource_path_arg = os.pathsep.join([input_dir, cwd])
         extra_args = [f'--resource-path={resource_path_arg}']
+
+        # For PDF, try Pandoc + WeasyPrint first, then fall back to xhtml2pdf.
+        use_weasyprint = False
+        if output_format == 'pdf':
+            venv_dir = os.path.dirname(os.path.abspath(sys.executable))
+            weasyprint_exe = os.path.join(venv_dir, 'weasyprint.exe')
+            if not os.path.exists(weasyprint_exe):
+                weasyprint_exe = os.path.join(venv_dir, 'weasyprint')
+            if _can_use_weasyprint(weasyprint_exe):
+                extra_args.append(f'--pdf-engine={weasyprint_exe}')
+                use_weasyprint = True
+            else:
+                print("INFO: WeasyPrint runtime unavailable; using xhtml2pdf fallback.")
+            extra_args.append('--metadata=title= ')
 
         # Read the file and replace standalone --- lines (horizontal rules)
         # with *** to prevent Pandoc from misinterpreting them as YAML blocks.
@@ -108,8 +214,21 @@ def convert_md_to_docx(input_file, output_file):
             content = render_mermaid_blocks(content, tmp_dir)
 
             # Write output to a local temp file first, then copy to final destination
-            tmp_output = os.path.join(tmp_dir, 'output.docx')
-            pypandoc.convert_text(content, 'docx', format='markdown', outputfile=tmp_output, extra_args=extra_args)
+            tmp_output = os.path.join(tmp_dir, f'output.{output_format}')
+            if output_format != 'pdf':
+                pypandoc.convert_text(content, output_format, format='markdown', outputfile=tmp_output, extra_args=extra_args)
+            else:
+                if use_weasyprint:
+                    try:
+                        pypandoc.convert_text(content, output_format, format='markdown', outputfile=tmp_output, extra_args=extra_args)
+                    except Exception as pdf_error:
+                        print(f"WARNING: Pandoc PDF engine failed ({pdf_error}).")
+                        print("INFO: Falling back to xhtml2pdf (no native GTK dependencies required).")
+                        fallback_paths = [tmp_dir, input_dir, cwd]
+                        _convert_pdf_with_xhtml2pdf(content, tmp_output, fallback_paths, resource_path_arg)
+                else:
+                    fallback_paths = [tmp_dir, input_dir, cwd]
+                    _convert_pdf_with_xhtml2pdf(content, tmp_output, fallback_paths, resource_path_arg)
             shutil.copy2(tmp_output, output_file)
 
         print(f"Successfully converted '{input_file}' to '{output_file}'.")
@@ -117,6 +236,8 @@ def convert_md_to_docx(input_file, output_file):
     except OSError as e:
         print(f"Error during conversion: {e}")
         print("Make sure Pandoc is installed and available in your system path.")
+        if output_format == 'pdf':
+            print("PDF output uses WeasyPrint when available, otherwise xhtml2pdf fallback.")
         sys.exit(1)
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
@@ -155,28 +276,32 @@ def convert_docx_to_md(input_file, output_file):
         sys.exit(1)
 
 
-def detect_direction(input_file):
+def detect_direction(input_file, output_format='docx'):
     """
     Auto-detects the conversion direction based on the input file extension.
-    Returns ('md2docx', default_output) or ('docx2md', default_output).
+    For Markdown input, uses output_format to determine the output extension.
+    Returns (direction, default_output).
     """
     ext = os.path.splitext(input_file)[1].lower()
     base = os.path.splitext(input_file)[0]
     if ext in ('.docx',):
         return 'docx2md', base + '.md'
     else:
-        return 'md2docx', base + '.docx'
+        return 'md2out', base + '.' + output_format
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Convert between Markdown and DOCX (auto-detects direction).")
+    parser = argparse.ArgumentParser(description="Convert between Markdown, DOCX, and PDF (auto-detects direction).")
     parser.add_argument("input_file", nargs="?", help="Path to the input file (.md or .docx).")
     parser.add_argument("output_file", nargs="?", help="Path to the output file.")
+    parser.add_argument("-f", "--format", choices=["docx", "pdf"], default="docx",
+                        help="Output format when converting from Markdown (default: docx).")
 
     args = parser.parse_args()
 
     input_file = args.input_file
     output_file = args.output_file
+    output_format = args.format
 
     # Interactive mode: ask for input file if not provided
     if not input_file:
@@ -192,8 +317,11 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # Auto-detect conversion direction
-    direction, default_output = detect_direction(input_file)
-    direction_label = "DOCX → Markdown" if direction == 'docx2md' else "Markdown → DOCX"
+    direction, default_output = detect_direction(input_file, output_format)
+    if direction == 'docx2md':
+        direction_label = "DOCX -> Markdown"
+    else:
+        direction_label = f"Markdown -> {output_format.upper()}"
     print(f"Detected conversion: {direction_label}")
 
     # Ask for output file if not provided
@@ -212,4 +340,4 @@ if __name__ == "__main__":
     if direction == 'docx2md':
         convert_docx_to_md(input_file, output_file)
     else:
-        convert_md_to_docx(input_file, output_file)
+        convert_md_to_output(input_file, output_file, output_format)
